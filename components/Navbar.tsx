@@ -30,7 +30,7 @@ export default function Navbar() {
           </div>
           <div className="flex items-center space-x-4">
             <a
-              href="https://github.com/yourusername/app-screenshot-generator"
+              href="https://github.com/Yesno-Labs/app-store-screenshot-generator"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center text-gray-600 hover:text-gray-900"
