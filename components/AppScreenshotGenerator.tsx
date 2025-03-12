@@ -1,10 +1,10 @@
 "use client";
 
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import ImageUpload from "@/components/ImageUpload";
 import ScreenshotGenerator from "@/components/ScreenshotGenerator";
 import FontSelector from "@/components/FontSelector";
-import { useState, useEffect, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import useFontLoader, { loadFont } from "@/lib/useFontLoader";
 import {
   devicesIphone,
@@ -16,6 +16,7 @@ import {
   deviceDimensions,
 } from "@/lib/constants";
 import { defaultImage } from "@/lib/deafultImage";
+import { logEvent } from "@/lib/firebase";
 
 const sliderStyles = `
   .custom-slider {
@@ -126,6 +127,12 @@ function AppScreenshotGeneratorContent() {
   );
 
   const [fontLoaded, setFontLoaded] = useState(false);
+
+  useEffect(() => {
+    logEvent("page_view", {
+      page_title: "App Screenshot Generator Homepage",
+    });
+  }, []);
 
   // Add beforeunload event listener to prompt user before leaving the page
   useEffect(() => {

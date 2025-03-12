@@ -7,6 +7,10 @@ You can also use the tool directly from:
 
 ## Getting Started
 
+`npm install`
+
+Copy .env.example to .env.local
+
 ```bash
 npm run dev
 # or
