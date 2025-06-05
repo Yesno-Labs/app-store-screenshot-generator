@@ -1,5 +1,9 @@
 import { useRef, useEffect } from "react";
-import { deviceDimensions, deviceNames } from "@/lib/constants";
+import {
+  deviceDimensions,
+  canvasDimensions,
+  deviceNames,
+} from "@/lib/constants";
 
 interface ScreenshotGeneratorProps {
   screenshotImage: string | null;
@@ -50,8 +54,8 @@ const ScreenshotGenerator = ({
 
     // Use the imported deviceDimensions
     const dimensions =
-      deviceDimensions[deviceType as keyof typeof deviceDimensions] ||
-      deviceDimensions.iphone16promax;
+      canvasDimensions[deviceType as keyof typeof canvasDimensions] ||
+      canvasDimensions.iphone16promax;
 
     canvas.width = dimensions.width;
     canvas.height = dimensions.height;

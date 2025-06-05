@@ -13,6 +13,12 @@ export const deviceDimensions = {
   androidTablet10: { width: 1600, height: 2560 },
 };
 
+// Fastlane only accepts 1290 x 2796 for 6.9 display
+export const canvasDimensions = {
+  ...deviceDimensions,
+  iphone16promax: { width: 1290, height: 2796 },
+};
+
 export const devicesIphone = {
   iphone16promax: "iPhone 16 Pro Max",
   iphone14plus: "iPhone 14 Plus",
