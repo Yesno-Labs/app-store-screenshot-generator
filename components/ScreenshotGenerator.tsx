@@ -1,9 +1,5 @@
 import { useRef, useEffect } from "react";
-import {
-  deviceDimensions,
-  canvasDimensions,
-  deviceNames,
-} from "@/lib/constants";
+import { canvasDimensions, deviceNames } from "@/lib/constants";
 
 interface ScreenshotGeneratorProps {
   screenshotImage: string | null;
@@ -326,7 +322,7 @@ const ScreenshotGenerator = ({
             <p>
               {(() => {
                 const dimensions =
-                  deviceDimensions[deviceType as keyof typeof deviceDimensions];
+                  canvasDimensions[deviceType as keyof typeof canvasDimensions];
                 const name =
                   deviceNames[deviceType as keyof typeof deviceNames];
                 return `${name}: ${dimensions.width} × ${dimensions.height} px`;
