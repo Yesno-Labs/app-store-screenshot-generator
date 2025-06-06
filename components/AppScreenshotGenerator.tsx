@@ -304,6 +304,24 @@ function AppScreenshotGeneratorContent() {
     router.push(`/bulk-upload?${queryParams.toString()}`);
   };
 
+  const navigateToStoreScreenshots = () => {
+    const queryParams = new URLSearchParams();
+    queryParams.set("deviceType", deviceType);
+    queryParams.set("textColor", textColor);
+    queryParams.set("backgroundColor", backgroundColor);
+    queryParams.set("bezelWidth", String(bezelWidth));
+    queryParams.set("bezelColor", bezelColor);
+    queryParams.set("fontFamily", fontFamily);
+    queryParams.set("fontSize", String(fontSize));
+    queryParams.set("fontWeight", fontWeight);
+    queryParams.set("textTopDistance", String(textTopDistance));
+    queryParams.set("bezelTopDistance", String(bezelTopDistance));
+    queryParams.set("deviceSizeFactor", String(deviceSizeFactor));
+    queryParams.set("borderRadius", String(borderRadius));
+
+    router.push(`/store-screenshots?${queryParams.toString()}`);
+  };
+
   const updateUrlWithConfig = () => {
     if (typeof window === "undefined") return;
 
@@ -805,22 +823,51 @@ function AppScreenshotGeneratorContent() {
         </div>
       </div>
 
-      <div className="mt-10 text-center">
-        <button
-          onClick={navigateToBulkUpload}
-          className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 inline-flex items-center"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 mr-2"
-            viewBox="0 0 20 20"
-            fill="currentColor"
+      <div className="mt-10 text-center space-y-4">
+        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+          <button
+            onClick={navigateToBulkUpload}
+            className="px-6 py-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 inline-flex items-center"
           >
-            <path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H11V9.413l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13H5.5z" />
-            <path d="M9 13h2v5a1 1 0 11-2 0v-5z" />
-          </svg>
-          Generate Multiple With Current Config
-        </button>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mr-2"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path d="M5.5 13a3.5 3.5 0 01-.369-6.98 4 4 0 117.753-1.977A4.5 4.5 0 1113.5 13H11V9.413l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13H5.5z" />
+              <path d="M9 13h2v5a1 1 0 11-2 0v-5z" />
+            </svg>
+            Generate Multiple With Current Config
+          </button>
+
+          <button
+            onClick={navigateToStoreScreenshots}
+            className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 mr-2"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+            >
+              <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+            </svg>
+            Generate Store Screenshots (All Languages)
+          </button>
+        </div>
+
+        <div className="text-sm text-gray-600 max-w-2xl mx-auto">
+          <p className="mb-2">
+            <strong>Generate Multiple:</strong> Upload multiple images and
+            create screenshots with custom messages for each.
+          </p>
+          <p>
+            <strong>Store Screenshots:</strong> Upload 8 images and
+            automatically generate screenshots for all 40 languages using
+            pre-defined marketing messages.
+          </p>
+        </div>
       </div>
     </>
   );
