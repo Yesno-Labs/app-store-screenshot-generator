@@ -4,11 +4,20 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import ImageUpload from "@/components/ImageUpload";
 import ScreenshotGenerator from "@/components/ScreenshotGenerator";
-import { deviceNames, defaultConfigs, deviceDimensions } from "@/lib/constants";
+import {
+  deviceNames,
+  defaultConfigs,
+  deviceDimensions,
+  canvasDimensions,
+} from "@/lib/constants";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { loadFont } from "@/lib/useFontLoader";
 import { toast } from "react-hot-toast";
+import {
+  getAvailableLanguages,
+  getMarketingMessagesForLanguage,
+} from "@/lib/marketing-messages";
 
 type DeviceType = keyof typeof defaultConfigs;
 
@@ -30,6 +39,233 @@ const defaultPrefilledBulkMarketingMessages = [
   "Marketing Message 2",
   "Marketing Message 3",
 ];
+
+// Utility function to generate screenshot canvas programmatically
+const generateScreenshotCanvas = (
+  screenshotImage: string,
+  marketingMessage: string,
+  deviceType: string,
+  config: {
+    textColor: string;
+    backgroundColor: string;
+    bezelWidth: number;
+    bezelColor: string;
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: string;
+    textTopDistance: number;
+    bezelTopDistance: number;
+    deviceSizeFactor: number;
+    borderRadius: number;
+  }
+): Promise<HTMLCanvasElement | null> => {
+  return new Promise((resolve) => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      resolve(null);
+      return;
+    }
+
+    // Set canvas dimensions
+    const dimensions =
+      canvasDimensions[deviceType as keyof typeof canvasDimensions] ||
+      canvasDimensions.iphone16promax;
+
+    canvas.width = dimensions.width;
+    canvas.height = dimensions.height;
+
+    const img = new Image();
+    img.onload = () => {
+      // Helper function to draw rounded rectangles
+      const drawRoundedRect = (
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number
+      ) => {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.arcTo(
+          x + width,
+          y + height,
+          x + width - radius,
+          y + height,
+          radius
+        );
+        ctx.lineTo(x + radius, y + height);
+        ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        ctx.lineTo(x, y + radius);
+        ctx.arcTo(x, y, x + radius, y, radius);
+        ctx.closePath();
+        ctx.fill();
+      };
+
+      // Helper function to create a rounded rectangle path (for clipping)
+      const createRoundedRectPath = (
+        ctx: CanvasRenderingContext2D,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        radius: number
+      ) => {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.arcTo(x + width, y, x + width, y + radius, radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.arcTo(
+          x + width,
+          y + height,
+          x + width - radius,
+          y + height,
+          radius
+        );
+        ctx.lineTo(x + radius, y + height);
+        ctx.arcTo(x, y + height, x, y + height - radius, radius);
+        ctx.lineTo(x, y + radius);
+        ctx.arcTo(x, y, x + radius, y, radius);
+        ctx.closePath();
+      };
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Fill background
+      ctx.fillStyle = config.backgroundColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Calculate maximum available width and height
+      const maxScreenshotWidth = canvas.width * 0.85;
+      const maxScreenshotHeight = canvas.height * 0.7;
+
+      // Apply device size factor
+      let scale =
+        Math.min(
+          maxScreenshotWidth / (img.width + config.bezelWidth * 2),
+          maxScreenshotHeight / (img.height + config.bezelWidth * 2)
+        ) * config.deviceSizeFactor;
+
+      // Calculate scaled dimensions for the screenshot
+      const scaledWidth = img.width * scale;
+      const scaledHeight = img.height * scale;
+
+      // Calculate bezel dimensions
+      const totalBezelWidth = scaledWidth + config.bezelWidth * 2;
+      const totalBezelHeight = scaledHeight + config.bezelWidth * 2;
+
+      // Center the bezel horizontally
+      const bezelX = (canvas.width - totalBezelWidth) / 2;
+
+      // Set bezel Y position based on user input
+      const bezelY = config.bezelTopDistance;
+
+      // Draw bezel with rounded corners
+      ctx.fillStyle = config.bezelColor;
+      drawRoundedRect(
+        ctx,
+        bezelX,
+        bezelY,
+        totalBezelWidth,
+        totalBezelHeight,
+        config.borderRadius
+      );
+
+      // Calculate inner bezel area for screenshot
+      const screenX = bezelX + config.bezelWidth;
+      const screenY = bezelY + config.bezelWidth;
+      const screenWidth = scaledWidth;
+      const screenHeight = scaledHeight;
+      const screenCornerRadius = Math.max(
+        0,
+        config.borderRadius - config.bezelWidth
+      );
+
+      // Save context state before clipping
+      ctx.save();
+
+      // Create clipping path for the screenshot with rounded corners
+      createRoundedRectPath(
+        ctx,
+        screenX,
+        screenY,
+        screenWidth,
+        screenHeight,
+        screenCornerRadius
+      );
+      ctx.clip();
+
+      // Draw the screenshot within the clipped area
+      ctx.drawImage(img, screenX, screenY, screenWidth, screenHeight);
+
+      // Restore context state to remove clipping
+      ctx.restore();
+
+      // Text positioning and rendering
+      ctx.fillStyle = config.textColor;
+      ctx.font = `${config.fontWeight} ${config.fontSize}px ${config.fontFamily}`;
+      ctx.textAlign = "center";
+
+      // Calculate text position
+      const textX = canvas.width / 2;
+
+      // Always use textTopDistance for text positioning
+      const textY = config.textTopDistance;
+
+      // Set horizontal text padding (percentage of canvas width)
+      const textWidthLimit = canvas.width * 0.8; // 80% of canvas width
+
+      // Draw text with word wrapping and line breaks
+      const lineHeight = config.fontSize * 1.2;
+      const paragraphs = marketingMessage.split("\n");
+      let currentY = textY;
+
+      paragraphs.forEach((paragraph) => {
+        // Skip empty paragraphs but still add line spacing
+        if (paragraph.trim() === "") {
+          currentY += lineHeight;
+          return;
+        }
+
+        const words = paragraph.split(" ");
+        let currentLine = words[0];
+
+        for (let i = 1; i < words.length; i++) {
+          const word = words[i];
+          const testLine = currentLine + " " + word;
+          const metrics = ctx.measureText(testLine);
+
+          if (metrics.width > textWidthLimit) {
+            // Line is too long, render current line and move to next
+            ctx.fillText(currentLine, textX, currentY);
+            currentY += lineHeight;
+            currentLine = word;
+          } else {
+            currentLine = testLine;
+          }
+        }
+
+        // Draw the last line of this paragraph
+        ctx.fillText(currentLine, textX, currentY);
+        currentY += lineHeight;
+      });
+
+      resolve(canvas);
+    };
+
+    img.onerror = () => {
+      resolve(null);
+    };
+
+    img.src = screenshotImage;
+  });
+};
 
 export default function BulkUpload() {
   return (
@@ -108,16 +344,25 @@ function BulkUploadContent() {
   const [bulkMarketingMessages, setBulkMarketingMessages] = useState<string[]>(
     defaultPrefilledBulkMarketingMessages
   );
+  const [selectedLanguage, setSelectedLanguage] = useState<string>("");
 
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const hasChangedDefaultMessages =
+        !selectedLanguage &&
+        (bulkMarketingMessages.length !==
+          defaultPrefilledBulkMarketingMessages.length ||
+          bulkMarketingMessages[0] !==
+            defaultPrefilledBulkMarketingMessages[0] ||
+          bulkMarketingMessages[1] !==
+            defaultPrefilledBulkMarketingMessages[1] ||
+          bulkMarketingMessages[2] !==
+            defaultPrefilledBulkMarketingMessages[2]);
+
       if (
         screenshots.some((s) => s.uploadedImage || s.marketingMessage) ||
-        bulkMarketingMessages.length !==
-          defaultPrefilledBulkMarketingMessages.length ||
-        bulkMarketingMessages[0] !== defaultPrefilledBulkMarketingMessages[0] ||
-        bulkMarketingMessages[1] !== defaultPrefilledBulkMarketingMessages[1] ||
-        bulkMarketingMessages[2] !== defaultPrefilledBulkMarketingMessages[2]
+        selectedLanguage ||
+        hasChangedDefaultMessages
       ) {
         e.preventDefault();
         const message =
@@ -132,7 +377,7 @@ function BulkUploadContent() {
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [screenshots, bulkMarketingMessages]);
+  }, [screenshots, bulkMarketingMessages, selectedLanguage]);
 
   // Add a new screenshot row
   const addScreenshot = () => {
@@ -177,8 +422,13 @@ function BulkUploadContent() {
 
   // Add a new marketing message input
   const addMarketingMessageInput = () => {
-    if (bulkMarketingMessages.length >= 10) {
-      toast.error("You can't add more than 10 marketing messages.");
+    const maxMessages = selectedLanguage ? 8 : 10;
+    if (bulkMarketingMessages.length >= maxMessages) {
+      toast.error(
+        `You can't add more than ${maxMessages} marketing messages${
+          selectedLanguage ? " when using a predefined language" : ""
+        }.`
+      );
       return;
     }
     setBulkMarketingMessages([...bulkMarketingMessages, ""]);
@@ -193,9 +443,25 @@ function BulkUploadContent() {
 
   // Remove a marketing message input
   const removeBulkMarketingMessage = (index: number) => {
-    if (bulkMarketingMessages.length > 1) {
+    const minMessages = selectedLanguage ? 8 : 1;
+    if (bulkMarketingMessages.length > minMessages) {
       const newMessages = bulkMarketingMessages.filter((_, i) => i !== index);
       setBulkMarketingMessages(newMessages);
+    } else if (selectedLanguage) {
+      toast.error(
+        "Cannot remove messages when using a predefined language. Switch to 'Custom Messages' to edit."
+      );
+    }
+  };
+
+  // Handle language selection
+  const handleLanguageChange = (language: string) => {
+    setSelectedLanguage(language);
+    if (language) {
+      const messages = getMarketingMessagesForLanguage(language);
+      setBulkMarketingMessages(messages);
+    } else {
+      setBulkMarketingMessages(defaultPrefilledBulkMarketingMessages);
     }
   };
 
@@ -371,6 +637,82 @@ function BulkUploadContent() {
     saveAs(content, `app-screenshots-${deviceType}.zip`);
   };
 
+  // Download screenshots for all languages
+  const downloadAllLanguages = async () => {
+    const uploadedImages = screenshots.filter((s) => s.uploadedImage);
+    if (uploadedImages.length === 0) {
+      toast.error(
+        "Please upload at least one image before generating screenshots for all languages."
+      );
+      return;
+    }
+
+    // Show loading toast
+    const loadingToast = toast.loading(
+      "Generating screenshots for all languages..."
+    );
+
+    try {
+      const zip = new JSZip();
+      const languages = getAvailableLanguages();
+
+      // For each language, generate screenshots
+      for (const language of languages) {
+        const languageMessages = getMarketingMessagesForLanguage(language);
+        const languageFolder = zip.folder(language);
+
+        // Generate screenshots for this language
+        for (let i = 0; i < uploadedImages.length && i < 8; i++) {
+          const screenshot = uploadedImages[i];
+          const marketingMessage =
+            languageMessages[i] || languageMessages[0] || "";
+
+          // Create a temporary canvas to generate the screenshot
+          const canvas = await generateScreenshotCanvas(
+            screenshot.uploadedImage!,
+            marketingMessage,
+            deviceType,
+            {
+              textColor,
+              backgroundColor,
+              bezelWidth,
+              bezelColor,
+              fontFamily,
+              fontSize,
+              fontWeight,
+              textTopDistance,
+              bezelTopDistance,
+              deviceSizeFactor,
+              borderRadius,
+            }
+          );
+
+          if (canvas) {
+            const imageData = canvas.toDataURL("image/png").split(",")[1];
+            languageFolder?.file(
+              `screenshot-${i + 1}-${deviceType}.png`,
+              imageData,
+              {
+                base64: true,
+              }
+            );
+          }
+        }
+      }
+
+      // Generate and save the zip file
+      const content = await zip.generateAsync({ type: "blob" });
+      saveAs(content, `app-screenshots-all-languages-${deviceType}.zip`);
+
+      toast.dismiss(loadingToast);
+      toast.success(`Generated screenshots for ${languages.length} languages!`);
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error("Failed to generate screenshots for all languages.");
+      console.error("Error generating screenshots:", error);
+    }
+  };
+
   // Function to navigate back to the main page with all config params
   const navigateBackToMainPage = () => {
     const queryParams = new URLSearchParams();
@@ -416,45 +758,81 @@ function BulkUploadContent() {
         {/* New multiple image upload section */}
         {!hasUploadedImages && (
           <div className="bg-indigo-50 p-6 rounded-xl shadow-sm border border-indigo-100 mb-8">
+            {/* Language Selector */}
+            <div className="mb-6">
+              <h2 className="text-xl font-display font-semibold mb-4 text-gray-900">
+                Select Language
+              </h2>
+              <p className="text-gray-600 font-secondary mb-4">
+                Choose a language to automatically populate marketing messages,
+                or leave blank to use custom messages.
+              </p>
+              <select
+                value={selectedLanguage}
+                onChange={(e) => handleLanguageChange(e.target.value)}
+                className="w-full p-3 border border-gray-300 rounded-md font-secondary bg-white"
+              >
+                <option value="">Custom Messages</option>
+                {getAvailableLanguages().map((language) => (
+                  <option key={language} value={language}>
+                    {language}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="mb-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-display font-semibold mb-0 text-gray-900">
                   Pre-filled Marketing Messages
                 </h2>
-                <button
-                  onClick={addMarketingMessageInput}
-                  className="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center font-medium transition-colors"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-4 w-4 mr-1"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
+                {!selectedLanguage && (
+                  <button
+                    onClick={addMarketingMessageInput}
+                    className="px-3 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 flex items-center font-medium transition-colors"
                   >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  Add Message
-                </button>
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-4 w-4 mr-1"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                    Add Message
+                  </button>
+                )}
               </div>
               <p className="text-gray-600 font-secondary mb-4">
-                Add marketing messages for each image you'll upload. Messages
-                will be applied in the order shown below.
+                {selectedLanguage
+                  ? `Pre-filled with marketing messages for ${selectedLanguage}. Switch to "Custom Messages" to edit.`
+                  : "Add marketing messages for each image you'll upload. Messages will be applied in the order shown below."}
               </p>
 
               {bulkMarketingMessages.map((message, index) => (
                 <div key={index} className="flex items-start gap-2 mb-3">
                   <input
-                    className="flex-grow p-2 border border-gray-300 rounded-md font-secondary"
+                    className={`flex-grow p-2 border border-gray-300 rounded-md font-secondary ${
+                      selectedLanguage ? "bg-gray-50 text-gray-600" : ""
+                    }`}
                     value={message}
                     onChange={(e) =>
                       updateBulkMarketingMessage(index, e.target.value)
                     }
+                    disabled={!!selectedLanguage}
+                    placeholder={
+                      selectedLanguage
+                        ? "Pre-filled from selected language"
+                        : "Enter marketing message"
+                    }
                   />
-                  {bulkMarketingMessages.length > 1 && (
+                  {((selectedLanguage && bulkMarketingMessages.length > 8) ||
+                    (!selectedLanguage &&
+                      bulkMarketingMessages.length > 1)) && (
                     <button
                       onClick={() => removeBulkMarketingMessage(index)}
                       className="p-2 text-red-500 hover:text-red-700 transition-colors"
@@ -643,7 +1021,7 @@ function BulkUploadContent() {
           </div>
         ))}
 
-        {/* Add Download button */}
+        {/* Add Download buttons */}
         {screenshots.some((s) => s.uploadedImage && s.marketingMessage) && (
           <div className="flex flex-col items-center justify-center mt-8 space-y-4">
             {hasUploadedImages && (
@@ -654,26 +1032,78 @@ function BulkUploadContent() {
                 + Add Screenshot
               </button>
             )}
-            <button
-              onClick={downloadAll}
-              className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center font-medium transition-colors"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5 mr-2"
-                viewBox="0 0 20 20"
-                fill="currentColor"
+            <div className="flex flex-col sm:flex-row gap-4">
+              <button
+                onClick={downloadAll}
+                className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 inline-flex items-center font-medium transition-colors"
               >
-                <path
-                  fillRule="evenodd"
-                  d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              Download All as ZIP
-            </button>
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 mr-2"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Download Current as ZIP
+              </button>
+
+              <button
+                onClick={downloadAllLanguages}
+                className="px-6 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 inline-flex items-center font-medium transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 mr-2"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Download All Languages
+              </button>
+            </div>
           </div>
         )}
+
+        {/* Add Download All Languages button even when no custom messages */}
+        {screenshots.some((s) => s.uploadedImage) &&
+          !screenshots.some((s) => s.marketingMessage) && (
+            <div className="flex flex-col items-center justify-center mt-8 space-y-4">
+              <div className="text-center mb-4">
+                <p className="text-gray-600 font-secondary mb-2">
+                  No custom marketing messages added, but you can still generate
+                  screenshots for all languages using uploaded images.
+                </p>
+              </div>
+              <button
+                onClick={downloadAllLanguages}
+                className="px-6 py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 inline-flex items-center font-medium transition-colors"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5 mr-2"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                Download All Languages
+              </button>
+            </div>
+          )}
       </div>
     </div>
   );
