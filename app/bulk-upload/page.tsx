@@ -40,6 +40,19 @@ const defaultPrefilledBulkMarketingMessages = [
   "Marketing Message 3",
 ];
 
+const bulkBackgroundColors = [
+  "#e9f1fe",
+  "#fff7ed",
+  "#f0fdf4",
+  "#fef2f2",
+  "#eff6ff",
+
+  "#faf5ff",
+
+  "#fdf2f8",
+  "#fefce8",
+];
+
 // Utility function to generate screenshot canvas programmatically
 const generateScreenshotCanvas = (
   screenshotImage: string,
@@ -674,7 +687,8 @@ function BulkUploadContent() {
             deviceType,
             {
               textColor,
-              backgroundColor,
+              backgroundColor:
+                bulkBackgroundColors[i % bulkBackgroundColors.length],
               bezelWidth,
               bezelColor,
               fontFamily,
@@ -931,7 +945,7 @@ function BulkUploadContent() {
           </div>
         )}
 
-        {screenshots.map((screenshot) => (
+        {screenshots.map((screenshot, screenshotIndex) => (
           <div
             key={screenshot.id}
             className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8"
@@ -993,7 +1007,11 @@ function BulkUploadContent() {
                     marketingMessage={screenshot.marketingMessage}
                     deviceType={deviceType}
                     textColor={textColor}
-                    backgroundColor={backgroundColor}
+                    backgroundColor={
+                      bulkBackgroundColors[
+                        screenshotIndex % bulkBackgroundColors.length
+                      ]
+                    }
                     bezelWidth={bezelWidth}
                     bezelColor={bezelColor}
                     fontFamily={fontFamily}
